@@ -97,8 +97,9 @@ M2000 --serial-baud <rate>  Overrides the host serial port baud rate used with -
 ```
 ### Booting JWS from floppy
 
-Download `cartridges/JWSBasic.bin` and `disks/jws-sytem.dsk` from
-[the software archive](https://github.com/p2000t/software). Then run:
+A validated cartridge/disk pair is included in [test/JWS](test/JWS/README.md),
+with source references and instructions for testing with a disk copy.
+For images downloaded from [the software archive](https://github.com/p2000t/software), run:
 
 ```sh
 ./M2000 /path/to/JWSBasic.bin --floppy /path/to/jws-sytem.dsk
