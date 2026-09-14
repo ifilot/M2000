@@ -25,7 +25,7 @@ int SDCart_Init(const char *SDRomPath, const char *SDImgPath) {
     }
     memset(ramBuffer, 0, 2 * 64 * 1024);
 
-    // read ROM file into SLOT2 ROM (here 16K, while actually 128K)
+    // read up to 128K into SLOT2 ROM; shorter images are padded with zeros
     FILE *romFile = fopen(SDRomPath, "rb");
     if (romFile == NULL) {
         fprintf(stderr, "Failed to open SD cartridge ROM '%s': %s\n",
@@ -33,16 +33,16 @@ int SDCart_Init(const char *SDRomPath, const char *SDImgPath) {
         SDCart_Cleanup();
         return 0;
     }
-    romBuffer = (byte *)malloc(16 * 1024);
+    romBuffer = (byte *)calloc(2 * 64 * 1024, 1);
     if (!romBuffer) {
         fclose(romFile);
         perror("Failed to allocate memory for ROM buffer");
         SDCart_Cleanup();
         return 0;
     }
-    // A partial ROM cannot be executed safely; reject it before enabling I/O.
-    if (fread(romBuffer, 1, 16 * 1024, romFile) != 16 * 1024) {
-        fprintf(stderr, "Failed to read complete SD cartridge ROM '%s'\n", SDRomPath);
+    // EOF is valid for a smaller image; only an actual read error is fatal.
+    if (fread(romBuffer, 1, 2 * 64 * 1024, romFile) < 2 * 64 * 1024 && ferror(romFile)) {
+        fprintf(stderr, "Failed to read SD cartridge ROM '%s'\n", SDRomPath);
         fclose(romFile);
         SDCart_Cleanup();
         return 0;
@@ -63,6 +63,7 @@ int SDCart_Init(const char *SDRomPath, const char *SDImgPath) {
         return 0;
     }
     memset(sdSectorBuffer, 0, 512);
+    romBank = 0;
     return 1;
 }
 
@@ -163,7 +164,7 @@ void SDCart_Out(byte port, byte value) {
                 targetAddress = (targetAddress & 0x00FF) | (value << 8);
                 break;
             case PORT_ROM_BANK:
-                //ignore value, always set to 1
+                romBank = value ? 1 : 0; // two 64K banks, matching RAM bank selection
                 break;
             case PORT_RAM_BANK:
                 ramBank = value ? 1 : value;
@@ -241,13 +242,13 @@ byte SDCart_In(byte port) {
                 ret = (targetAddress >> 8) & 0xFF;
                 break;
             case PORT_ROM_BANK:
-                ret = 0;
+                ret = romBank;
                 break;
             case PORT_RAM_BANK:
                 ret = ramBank;
                 break;
             case PORT_ROM_IO:
-                ret = romBuffer[targetAddress];
+                ret = romBuffer[(romBank * 64 * 1024) + targetAddress];
                 break;
             case PORT_RAM_IO:
                 ret = ramBuffer[(ramBank * 64 * 1024) + targetAddress];
