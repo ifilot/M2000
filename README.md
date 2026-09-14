@@ -114,14 +114,13 @@ starts JWS DISK SYSTEM 5.0NL. This disk then automatically loads Utilities II.
 The floppy option selects the existing 80 KiB RAM expansion when needed.
 Paths passed to `--floppy` are relative to the working directory.
 
-The controller is implemented in `src/FDC.c` and `src/FDC.h`. It supports
-read/write sectors, read track, read ID, seek/recalibrate, status commands,
-terminal count, and the board's CTC interrupt routing. Images are updated in
-place; use a working copy to preserve the original. Read-only files are mounted
-write-protected. Only raw JWS images (40 cylinders, two sides, 16 sectors of
-256 bytes) are supported. Formatting, deleted sectors, rotational timing, and
-saving/restoring controller state in emulator save states are not implemented.
-The command-line mount option is available in the standalone frontend.
+The emulated floppy drive controller  supports read/write sectors, read track,
+read ID, seek/recalibrate, status commands, terminal count, and the board's CTC
+interrupt routing. **Images are updated in place; use a working copy to preserve
+the original.** Read-only files are mounted write-protected. Only raw JWS images
+(40 cylinders, two sides, 16 sectors of 256 bytes) are supported. Formatting,
+deleted sectors, rotational timing, and saving/restoring controller state in
+emulator save states are not implemented.
 
 ### Configuration file
 
