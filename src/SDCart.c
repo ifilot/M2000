@@ -40,7 +40,13 @@ int SDCart_Init(const char *SDRomPath, const char *SDImgPath) {
         SDCart_Cleanup();
         return 0;
     }
-    fread(romBuffer, 1, 16 * 1024, romFile);
+    // A partial ROM cannot be executed safely; reject it before enabling I/O.
+    if (fread(romBuffer, 1, 16 * 1024, romFile) != 16 * 1024) {
+        fprintf(stderr, "Failed to read complete SD cartridge ROM '%s'\n", SDRomPath);
+        fclose(romFile);
+        SDCart_Cleanup();
+        return 0;
+    }
     fclose(romFile);
 
     sdImageFile = fopen(SDImgPath, "rb+");
@@ -136,7 +142,7 @@ void SDCart_Out(byte port, byte value) {
                 }
                 break;
             case PORT_CLKSTART: // triggers the shift registers for SD i/o
-                if (readBlockStarted)
+                if (readBlockStarted && readBlockIndex < 512)
                     readBlockIndex++;
                 break;
             case PORT_DESELECT:
@@ -188,20 +194,24 @@ byte SDCart_In(byte port) {
                         case -1:
                             // read 512 bytes from SD image file into buffer
                             // http://www.rjhcoding.com/avrc-sd-interface-4.php
-                            if (sdImageFile) {
-                                fseek(sdImageFile, 512 * 
-                                    (commandBuffer[1] << 24 
-                                    | commandBuffer[2] << 16 
-                                    | commandBuffer[3] << 8 
-                                    | commandBuffer[4]), SEEK_SET);
-                                fread(sdSectorBuffer, 1, 512, sdImageFile);
+                            if (!sdImageFile || fseek(sdImageFile, 512 *
+                                    (commandBuffer[1] << 24
+                                    | commandBuffer[2] << 16
+                                    | commandBuffer[3] << 8
+                                    | commandBuffer[4]), SEEK_SET) != 0 ||
+                                fread(sdSectorBuffer, 1, 512, sdImageFile) != 512) {
+                                // SD SPI data-error token (specification 7.3.3.3).
+                                // End this transfer so no stale sector bytes escape.
+                                fprintf(stderr, "Failed to read complete SD card sector\n");
+                                readBlockIndex = 512;
+                                ret = 0x01;
+                                break;
                             }
                             ret = 0xFE; // indicate ready to send data
                             break;
                         default:
-                            if (readBlockIndex < 512) {
-                                ret = sdSectorBuffer[readBlockIndex];
-                            }
+                            ret = readBlockIndex >= 0 && readBlockIndex < 512
+                                ? sdSectorBuffer[readBlockIndex] : 0xFF;
                             break;
                     }
                 }
